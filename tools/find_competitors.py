@@ -2,7 +2,7 @@
 find_competitors.py
 
 Uses Firecrawl search to discover 5-8 competitor URLs in the made-to-measure
-t-shirt / custom fit apparel niche.
+t-shirt / custom fit apparel niche, focused on the German and European market.
 
 Outputs: .tmp/competitors_raw.json
 """
@@ -18,11 +18,13 @@ from firecrawl import FirecrawlApp
 load_dotenv()
 
 SEARCH_QUERIES = [
-    "made to measure t-shirt online custom fit body measurements",
-    "bespoke t-shirt ecommerce custom cutting pattern",
-    "tailor made t-shirt online order custom size",
-    "custom fit shirt body measurement platform online",
-    "made to measure clothing online exact measurements shirt",
+    "made to measure t-shirt online Europe custom fit body measurements",
+    "maßgeschneidertes T-Shirt online bestellen Deutschland Körpermaße",
+    "bespoke custom t-shirt ecommerce Germany Austria Switzerland",
+    "Maßshirt online individuell Körpermaße eingeben",
+    "custom fit t-shirt slim athletic men Europe online shop",
+    "maßgeschneiderte T-Shirts online Körpermaße Schneider",
+    "made to measure t-shirt European brand slim fit custom sizing",
 ]
 
 OUTPUT_PATH = ".tmp/competitors_raw.json"
@@ -44,16 +46,18 @@ def find_competitors(
 
         print(f"Searching: {query}")
         try:
-            search_result = app.search(
-                query,
-                params={"limit": 5},
-            )
-            entries = search_result.data if hasattr(search_result, "data") else search_result
+            search_result = app.search(query, limit=5)
+            # v4: search() returns SearchData directly with .web list
+            web_entries = []
+            if hasattr(search_result, "web") and search_result.web:
+                web_entries = search_result.web
+            elif isinstance(search_result, list):
+                web_entries = search_result
         except Exception as e:
             print(f"  Search failed: {e}")
             continue
 
-        for entry in entries:
+        for entry in web_entries:
             url = entry.url if hasattr(entry, "url") else entry.get("url", "")
             if not url:
                 continue

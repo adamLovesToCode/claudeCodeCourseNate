@@ -8,12 +8,43 @@ Outputs: .tmp/competitor_analysis_{timestamp}.pdf
 
 import json
 import os
+import unicodedata
 from datetime import datetime
 
 from dotenv import load_dotenv
 from fpdf import FPDF
 
 load_dotenv()
+
+
+def sanitize(text: str) -> str:
+    """Replace common Unicode chars with latin-1 equivalents for Helvetica font."""
+    if not text:
+        return ""
+    replacements = {
+        "\u2014": "-",   # em dash
+        "\u2013": "-",   # en dash
+        "\u2018": "'",   # left single quote
+        "\u2019": "'",   # right single quote
+        "\u201c": '"',   # left double quote
+        "\u201d": '"',   # right double quote
+        "\u2022": "-",   # bullet
+        "\u2026": "...", # ellipsis
+        "\u00e9": "e",   # é
+        "\u00e8": "e",   # è
+        "\u00ea": "e",   # ê
+        "\u00fc": "ue",  # ü
+        "\u00e4": "ae",  # ä
+        "\u00f6": "oe",  # ö
+        "\u00df": "ss",  # ß
+        "\u00c4": "Ae",  # Ä
+        "\u00d6": "Oe",  # Ö
+        "\u00dc": "Ue",  # Ü
+    }
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+    # Drop any remaining non-latin-1 characters
+    return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 ANALYSIS_PATH = ".tmp/analysis.json"
 BUSINESS_INFO_PATH = "business_info/business_info.json"
@@ -49,7 +80,7 @@ class CompetitorReport(FPDF):
             return
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(*COLOR_SUBTEXT)
-        self.cell(0, 6, f"{self.business_name} — Competitor Analysis Report", align="L")
+        self.cell(0, 6, sanitize(f"{self.business_name} - Competitor Analysis Report"), align="L")
         self.set_text_color(*COLOR_TEXT)
         self.ln(2)
         self.set_draw_color(*COLOR_PRIMARY)
@@ -76,14 +107,14 @@ class CompetitorReport(FPDF):
         self.set_text_color(255, 255, 255)
         self.cell(0, 12, "Competitor Analysis Report", align="C", new_y="NEXT", new_x="LMARGIN")
 
-        name = business_info.get("company_name", "Your Business")
+        name = sanitize(business_info.get("company_name", "Your Business"))
         self.set_font("Helvetica", "", 16)
         self.cell(0, 10, name, align="C", new_y="NEXT", new_x="LMARGIN")
 
         self.set_y(90)
         self.set_text_color(*COLOR_TEXT)
         self.set_font("Helvetica", "I", 12)
-        tagline = business_info.get("tagline", "")
+        tagline = sanitize(business_info.get("tagline", ""))
         self.cell(0, 8, tagline, align="C", new_y="NEXT", new_x="LMARGIN")
 
         self.ln(8)
@@ -93,6 +124,7 @@ class CompetitorReport(FPDF):
 
     def section_title(self, title: str, level: int = 1):
         self.ln(6)
+        title = sanitize(title)
         if level == 1:
             self.set_font("Helvetica", "B", 16)
             self.set_text_color(*COLOR_PRIMARY)
@@ -116,7 +148,7 @@ class CompetitorReport(FPDF):
         self.set_font("Helvetica", "", 10)
         self.set_text_color(*COLOR_TEXT)
         self.set_x(20 + indent)
-        self.multi_cell(170 - indent, 5.5, text)
+        self.multi_cell(170 - indent, 5.5, sanitize(text))
         self.ln(1)
 
     def bullet(self, text: str, color: tuple = None, indent: float = 5):
@@ -124,9 +156,9 @@ class CompetitorReport(FPDF):
         self.set_text_color(*(color or COLOR_TEXT))
         x = 20 + indent
         self.set_x(x)
-        self.cell(5, 5.5, "\u2022")
+        self.cell(5, 5.5, "*")
         self.set_x(x + 5)
-        self.multi_cell(165 - indent, 5.5, text)
+        self.multi_cell(165 - indent, 5.5, sanitize(text))
         self.set_text_color(*COLOR_TEXT)
 
     def shaded_box(self, content_fn, fill_color=COLOR_SHADED):
@@ -192,12 +224,12 @@ class CompetitorReport(FPDF):
         self.set_font("Helvetica", "B", 10)
         self.cell(40, 5.5, "Target Audience:")
         self.set_font("Helvetica", "", 10)
-        self.multi_cell(130, 5.5, profile.get("target_audience", "N/A"))
+        self.multi_cell(130, 5.5, sanitize(profile.get("target_audience", "N/A")))
 
         self.set_font("Helvetica", "B", 10)
         self.cell(40, 5.5, "Measurement Approach:")
         self.set_font("Helvetica", "", 10)
-        self.multi_cell(130, 5.5, profile.get("measurement_approach", "N/A"))
+        self.multi_cell(130, 5.5, sanitize(profile.get("measurement_approach", "N/A")))
 
         # Pricing box
         pricing = profile.get("pricing", {})
@@ -205,7 +237,7 @@ class CompetitorReport(FPDF):
         self.section_title("Pricing", level=3)
         self.set_fill_color(*COLOR_SHADED)
         self.set_font("Helvetica", "", 10)
-        price_text = (
+        price_text = sanitize(
             f"Model: {pricing.get('model', 'N/A')}   |   "
             f"Range: {pricing.get('range', 'N/A')}   |   "
             f"{pricing.get('notes', '')}"
@@ -245,7 +277,7 @@ class CompetitorReport(FPDF):
             self.ln(3)
             self.set_font("Helvetica", "B", 9)
             self.set_text_color(*COLOR_SUBTEXT)
-            self.cell(0, 5, f"Competitive Relevance: {relevance.upper()}")
+            self.cell(0, 5, sanitize(f"Competitive Relevance: {relevance.upper()}"))
             self.set_text_color(*COLOR_TEXT)
 
     def add_feature_matrix(self, matrix: dict):
@@ -311,9 +343,11 @@ class CompetitorReport(FPDF):
         self.set_x(20)
         self.multi_cell(
             170, 6,
-            f"Market Low: {pricing.get('market_low', 'N/A')}   |   "
-            f"Market High: {pricing.get('market_high', 'N/A')}   |   "
-            f"Typical Range: {pricing.get('typical_range', 'N/A')}",
+            sanitize(
+                f"Market Low: {pricing.get('market_low', 'N/A')}   |   "
+                f"Market High: {pricing.get('market_high', 'N/A')}   |   "
+                f"Typical Range: {pricing.get('typical_range', 'N/A')}"
+            ),
             fill=True,
         )
         self.ln(4)
@@ -322,7 +356,7 @@ class CompetitorReport(FPDF):
         self.set_fill_color(220, 230, 250)
         self.set_font("Helvetica", "B", 10)
         self.set_x(20)
-        self.multi_cell(170, 6, pricing.get("user_positioning_recommendation", ""), fill=True)
+        self.multi_cell(170, 6, sanitize(pricing.get("user_positioning_recommendation", "")), fill=True)
         self.ln(2)
 
         notes = pricing.get("notes", "")

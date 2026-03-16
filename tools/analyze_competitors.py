@@ -23,17 +23,19 @@ OUTPUT_PATH = ".tmp/analysis.json"
 RAW_OUTPUT_PATH = ".tmp/analysis_raw.txt"
 
 SYSTEM_PROMPT = """You are a senior market research analyst specializing in fashion technology, \
-custom apparel, and e-commerce. You produce rigorous, actionable competitive analyses for \
-early-stage startups.
+custom apparel, and e-commerce, with deep knowledge of the German and European apparel market. \
+You produce rigorous, actionable competitive analyses for early-stage startups.
 
 Your analysis must be evidence-based: cite specific features, prices, and positioning observed \
 in the competitor data. Do not speculate beyond what the data shows; flag when data was \
 unavailable.
 
-The user's core differentiator is TRUE made-to-measure: customers input body measurements, \
-a cutting pattern is generated, and a local tailor produces the garment. Focus your analysis \
-on how competitors handle fit and customization — do they actually take measurements, or do \
-they just offer standard sizes? This distinction is the key competitive lens.
+The user's business is Aurelius Shirts — a made-to-measure T-SHIRT platform targeting slim and \
+athletic men in the German/European market. Customers input body measurements, a custom cutting \
+pattern is generated, and a local tailor produces the t-shirt on demand. Focus your analysis \
+on how competitors handle fit and customization for t-shirts specifically — do they actually \
+take measurements, or do they just offer standard sizes? Pay close attention to pricing in EUR. \
+This fit-technology distinction and the European market context are the key competitive lenses.
 
 Return a single valid JSON object. No markdown fences, no commentary outside the JSON."""
 
@@ -142,6 +144,12 @@ def analyze_competitors(
     competitors = load_competitors(scraped_dir)
     print(f"  Loaded {len(competitors)} usable competitors")
 
+    # Strip large/noisy fields before sending to Claude to reduce token usage
+    STRIP_FIELDS = {"raw_homepage_length", "scraped_at", "scrape_status",
+                    "extraction_confidence", "pricing_page_found", "error"}
+    competitors = [{k: v for k, v in c.items() if k not in STRIP_FIELDS}
+                   for c in competitors]
+
     if len(competitors) < 2:
         raise ValueError(
             f"Only {len(competitors)} usable competitor(s) found. "
@@ -160,13 +168,14 @@ Return a JSON object matching this exact schema:
 {ANALYSIS_SCHEMA}
 
 Fill in the feature_matrix.competitors section with one entry per competitor from the data above.
-Focus on how well each competitor truly delivers made-to-measure fit vs. just offering size customization."""
+Focus on how well each competitor truly delivers made-to-measure fit for t-shirts vs. just offering size options.
+Report all prices in EUR where possible. Give special weight to German and European market players."""
 
     print("Calling Claude for analysis...")
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=8000,
+        max_tokens=16000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )

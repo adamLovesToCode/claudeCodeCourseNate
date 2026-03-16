@@ -2,7 +2,7 @@
 scrape_competitor.py
 
 Scrapes a single competitor URL using Firecrawl, then uses Claude to extract
-structured data about their product, fit approach, pricing, and features.
+structured data about their t-shirt product, fit approach, pricing, and features.
 
 Usage:
     python tools/scrape_competitor.py <url>
@@ -23,28 +23,29 @@ from firecrawl import FirecrawlApp
 
 load_dotenv()
 
-PRICING_HINTS = ["pricing", "price", "plans", "shop", "order", "buy", "cost", "order-now"]
+PRICING_HINTS = ["pricing", "price", "plans", "shop", "order", "buy", "cost", "order-now", "preise", "bestellen", "kaufen"]
 OUTPUT_DIR = ".tmp/scraped"
 
 EXTRACTION_PROMPT = """You are a data extraction assistant. Extract structured information from the following competitor website content.
 
-Focus especially on: how they handle custom sizing and fit, whether customers input body measurements, how the garment is produced, and their pricing.
+Focus especially on: how they handle custom sizing and fit for t-shirts, whether customers input body measurements, how the t-shirt is produced, and their pricing.
 
 Return a JSON object with exactly these fields (use null if information is not available):
 {{
   "company_name": "string or null",
   "tagline": "string or null",
   "target_audience": "who is this for?",
-  "product_type": "what exactly do they sell?",
+  "product_type": "what exactly do they sell? Be specific about t-shirts vs other garments.",
   "customization_level": "none | limited | moderate | high | full_bespoke",
   "measurement_method": "self_input | body_scan | ai_sizing | standard_sizes | stylist | unknown",
   "cutting_pattern_generated": "yes | no | unknown",
   "key_features": ["list", "of", "features"],
   "pricing_model": "subscription | per_item | tiered | custom_quote | not_found",
-  "price_points": ["list of specific prices or ranges, e.g. '$49/shirt'"],
+  "price_points": ["list of specific prices or ranges, e.g. '49 EUR per t-shirt'"],
   "production_model": "on_demand | inventory | hybrid | unknown",
   "technologies_mentioned": ["e.g. 3D fitting, body scan, AI sizing"],
-  "fit_claims": ["specific claims they make about fit accuracy"]
+  "fit_claims": ["specific claims they make about fit accuracy"],
+  "market_focus": ["list countries or regions they target, e.g. Germany, Europe, USA"]
 }}
 
 Return ONLY the JSON object. No markdown fences, no commentary.
@@ -63,6 +64,8 @@ def url_to_slug(url: str) -> str:
 
 def find_pricing_url(links: list, base_domain: str) -> str | None:
     for link in links:
+        if not isinstance(link, str):
+            continue
         parsed = urlparse(link)
         if base_domain not in parsed.netloc:
             continue
@@ -85,13 +88,11 @@ def scrape_competitor(url: str, output_dir: str = OUTPUT_DIR) -> dict:
     # --- Scrape homepage ---
     print(f"Scraping homepage: {url}")
     try:
-        home_result = fc.scrape_url(
+        home_result = fc.scrape(
             url,
-            params={
-                "formats": ["markdown", "links"],
-                "onlyMainContent": True,
-                "timeout": 30000,
-            },
+            formats=["markdown", "links"],
+            only_main_content=True,
+            timeout=30000,
         )
         homepage_md = home_result.markdown or ""
         raw_links = home_result.links or []
@@ -126,9 +127,11 @@ def scrape_competitor(url: str, output_dir: str = OUTPUT_DIR) -> dict:
     if pricing_url:
         print(f"  Scraping pricing page: {pricing_url}")
         try:
-            pricing_result = fc.scrape_url(
+            pricing_result = fc.scrape(
                 pricing_url,
-                params={"formats": ["markdown"], "onlyMainContent": True, "timeout": 20000},
+                formats=["markdown"],
+                only_main_content=True,
+                timeout=20000,
             )
             pricing_md = pricing_result.markdown or None
         except Exception as e:
@@ -147,7 +150,6 @@ def scrape_competitor(url: str, output_dir: str = OUTPUT_DIR) -> dict:
             messages=[{"role": "user", "content": prompt}],
         )
         raw_text = response.content[0].text.strip()
-        # Strip markdown fences if present
         raw_text = re.sub(r"^```json\s*", "", raw_text)
         raw_text = re.sub(r"\s*```$", "", raw_text)
         extracted = json.loads(raw_text)
