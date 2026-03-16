@@ -1,0 +1,4 @@
+firecrawl-py
+anthropic
+fpdf2
+python-dotenv
