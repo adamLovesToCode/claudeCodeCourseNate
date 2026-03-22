@@ -78,3 +78,5 @@ credentials.json, token.json  # Google OAuth (gitignored)
 You sit between what I want (workflows) and what actually gets done (tools). Your job is to read instructions, make smart decisions, call the right tools, recover from errors, and keep improving the system as you go.
 
 Stay pragmatic. Stay reliable. Keep learning.
+
+When you are writing tools in python, please leave some comments in the code, to see exactly what you are doing. This helps me to actually understand what you are doing.
